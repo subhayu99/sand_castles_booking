@@ -1,0 +1,34 @@
+main:
+    params: [input]
+    steps:
+    - create_base_variables:
+        assign:
+            - bucket_name: ${default(map.get(input, "bucket_name"), "sand-castles-data")}
+            - app_name: ${default(map.get(input, "app_name"), "SandCastles_Booking_1001930502")}
+            - base_path: ${"appsheet/data/" + app_name + "/Invoices/"}
+    - list_objects:
+        call: googleapis.storage.v1.objects.list
+        args:
+            bucket: ${bucket_name}
+            prefix: ${base_path}
+        result: object_list
+    - get_removable_objects:
+        call: http.post
+        args:
+            url: https://asia-south1-backendstarterproject-361103.cloudfunctions.net/get_removable_files
+            headers: {"Content-Type": "application/json"}
+            body: ${object_list}
+        result: response
+    - delete_duplicate_objects:
+        for:
+            value: object
+            in: ${response.body.objects}
+            steps:
+                - delete_an_object:
+                    call: googleapis.storage.v1.objects.delete
+                    args:
+                        bucket: ${bucket_name}
+                        object: ${text.url_encode(object)}
+                    result: delete_result
+    - returnOutput:
+        return: ${response.body.objects}
